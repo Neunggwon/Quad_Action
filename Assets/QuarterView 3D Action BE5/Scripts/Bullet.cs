@@ -5,27 +5,34 @@ using UnityEngine;
 public class Bullet : MonoBehaviour
 {
     public int damage;
+    public bool isMelee;
+    public bool isRock;
 
-    private void OnCollisionEnter(Collision collision)
+    public bool playerBullet;
+    void Update()
     {
-        if (collision.gameObject.tag == "Floor")
+        PlayerBullet();
+    }
+    void OnCollisionEnter(Collision collision)
+    {
+        if (!isRock && collision.gameObject.tag == "Floor")
         {
             Destroy(gameObject, 3);
         }
-        else if (collision.gameObject.tag == "Wall")
+        
+    }
+    void OnTriggerEnter(Collider other)
+    {
+        if (!isMelee && other.gameObject.tag == "Wall")
         {
-            Destroy(gameObject, 4);
+            Destroy(gameObject);
         }
     }
-    // Start is called before the first frame update
-    void Start()
+    void PlayerBullet()
     {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
+        if (playerBullet)
+        {
+            Destroy(gameObject, 3);
+        }
     }
 }

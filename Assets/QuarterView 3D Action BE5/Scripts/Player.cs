@@ -10,11 +10,16 @@ public class Player : MonoBehaviour
     
     public GameObject[] grenades;
     public int hasGrenades;
+    public GameObject grenadeObj;
     public Camera followCamera;
+    public GameManager manager;
+
+    /*public AudioScorce jumpSound;*/
 
     public int ammo;
     public int coin;
     public int health;
+    public int score;
 
     public int maxAmmo;
     public int maxCoin;
@@ -27,6 +32,7 @@ public class Player : MonoBehaviour
     bool wDown;
     bool jDown;
     bool fDown;
+    bool gDown;
     bool rDown;
     bool iDown;
     bool sDown1;
@@ -39,6 +45,10 @@ public class Player : MonoBehaviour
     bool isSwap;
     bool isReload;
     bool isFireReady = true;
+    bool isBorder;
+    bool isDamage;
+    bool isShop;
+    bool isDead;
 
     Vector3 moveVec;
     Vector3 dodgeVec;
@@ -46,23 +56,22 @@ public class Player : MonoBehaviour
 
     Rigidbody rigid;
     Animator anim;
+    MeshRenderer[] meshs;
 
     GameObject nearObject;
-    Weapon equipWeapon;
+    public Weapon equipWeapon;
 
     int equipWeaponIdex = -1;
     float fireDelay;
     void Awake()
     {
-        anim = GetComponentInChildren<Animator>();
         rigid = GetComponent<Rigidbody>();
-    }
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
+        anim = GetComponentInChildren<Animator>();
+        meshs = GetComponentsInChildren<MeshRenderer>();
 
+        //Debug.Log(PlayerPrefs.GetInt("MaxScore"));
+        //PlayerPrefs.SetInt("MaxScore", 112500);
+    }
     // Update is called once per frame
     void Update()
     {
@@ -71,6 +80,7 @@ public class Player : MonoBehaviour
         Turn();
         Jump();
         Attack();
+        Grenade();
         Reload();
         Dodge();
         Interation();
@@ -84,6 +94,7 @@ public class Player : MonoBehaviour
         wDown = Input.GetButton("Walk");
         jDown = Input.GetButtonDown("Jump");
         fDown = Input.GetButton("Fire1");
+        gDown = Input.GetButtonDown("Fire2");
         rDown = Input.GetButtonDown("Reload");
         iDown = Input.GetButtonDown("Interation");
         sDown1 = Input.GetButtonDown("Swap1");
@@ -98,12 +109,16 @@ public class Player : MonoBehaviour
         {
             moveVec = dodgeVec;
         }
-        if (isSwap || !isFireReady || isReload)
+        if (isSwap || !isFireReady || isReload || isDead)
         {
             moveVec = Vector3.zero;
         }
-        /*transform.position += moveVec * speed * Time.deltaTime;*/
-        transform.position += moveVec * speed * (wDown ? 0.3f : 1f) * Time.deltaTime;
+        if (!isBorder)
+        {
+
+            /*transform.position += moveVec * speed * Time.deltaTime;*/
+            transform.position += moveVec * speed * (wDown ? 0.3f : 1f) * Time.deltaTime;
+        }
 
         anim.SetBool("IsRun", moveVec != Vector3.zero);
         anim.SetBool("IsWalk", wDown);
@@ -114,7 +129,7 @@ public class Player : MonoBehaviour
         //키보드에 의한 회전
         transform.LookAt(transform.position + moveVec);
         //마우스에 의한 회전
-        if (fDown)
+        if (fDown && !isDead)
         {
             Ray ray = followCamera.ScreenPointToRay(Input.mousePosition);
             RaycastHit rayHit;
@@ -129,12 +144,40 @@ public class Player : MonoBehaviour
 
     void Jump()
     {
-        if (jDown && moveVec == Vector3.zero && !isJump && !isDodge)
+        if (jDown && moveVec == Vector3.zero && !isJump && !isDodge && !isDead)
         {
             rigid.AddForce(Vector3.up * 15, ForceMode.Impulse);
             anim.SetBool("IsJump", true);
             anim.SetTrigger("DoJump");
             isJump = true;
+
+            /*jumpSound.Play();*/
+        }
+    }
+
+    void Grenade()
+    {
+        if (hasGrenades == 0)
+        {
+            return;
+        }
+        if (gDown && !isReload && !isSwap && !isDead)
+        {
+            Ray ray = followCamera.ScreenPointToRay(Input.mousePosition);
+            RaycastHit rayHit;
+            if (Physics.Raycast(ray, out rayHit, 100))
+            {
+                Vector3 nextVec = rayHit.point - transform.position;
+                nextVec.y = 10;
+
+                GameObject instantGrenade = Instantiate(grenadeObj, transform.position, transform.rotation);
+                Rigidbody rigidGrenade = instantGrenade.GetComponent<Rigidbody>();
+                rigidGrenade.AddForce(nextVec, ForceMode.Impulse);
+                rigidGrenade.AddTorque(Vector3.back * 10, ForceMode.Impulse);
+
+                hasGrenades--;
+                grenades[hasGrenades].SetActive(false);
+            }
         }
     }
 
@@ -147,7 +190,7 @@ public class Player : MonoBehaviour
         fireDelay += Time.deltaTime;
         isFireReady = equipWeapon.rate < fireDelay;
 
-        if (fDown && isFireReady && !isDodge && !isSwap)
+        if (fDown && isFireReady && !isDodge && !isSwap && !isShop && !isDead)
         {
             equipWeapon.Use();
             anim.SetTrigger(equipWeapon.type == Weapon.Type.Melee ? "DoSwing" : "DoShot");
@@ -168,7 +211,7 @@ public class Player : MonoBehaviour
         {
             return;
         }
-        if (rDown && !isJump && !isDodge && !isSwap && isFireReady)
+        if (rDown && !isJump && !isDodge && !isSwap && isFireReady && !isShop && !isDead)
         {
             anim.SetTrigger("DoReload");
             isReload = true;
@@ -186,7 +229,7 @@ public class Player : MonoBehaviour
     }
     void Dodge()
     {
-        if (jDown && moveVec != Vector3.zero && !isJump && !isDodge)
+        if (jDown && moveVec != Vector3.zero && !isJump && !isDodge && !isDead)
         {
             dodgeVec = moveVec;
             speed *= 2;
@@ -252,7 +295,7 @@ public class Player : MonoBehaviour
     }
     void Interation()
     {
-        if (iDown && nearObject != null && !isJump)
+        if (iDown && nearObject != null && !isJump && !isDead)
         {
             if (nearObject.tag == "Weapon")
             {
@@ -263,7 +306,35 @@ public class Player : MonoBehaviour
 
                 Destroy(nearObject);
             }
+            else if (nearObject.tag == "Shop")
+            {
+                Shop shop = nearObject.GetComponent<Shop>();
+                shop.Enter(this);
+                isShop = true;
+            }
+
         }
+    }
+    void StopToWall()
+    {
+        Debug.DrawRay(transform.position, transform.forward * 5, Color.green);
+        isBorder = Physics.Raycast(transform.position, transform.forward, 5, LayerMask.GetMask("Wall"));
+    }
+
+    void FreezeRotation()
+    {
+        rigid.angularVelocity = Vector3.zero;
+        if (!isJump)  //추가
+        {
+            rigid.velocity = Vector3.zero;
+        }
+    }
+
+    void FixedUpdate()
+    {
+        FreezeRotation();
+        StopToWall();
+        /*rigid.velocity = new Vector3(rigid.velocity.x, 0, rigid.velocity.z);*/
     }
 
     void OnTriggerEnter(Collider other)
@@ -305,11 +376,63 @@ public class Player : MonoBehaviour
             }
             Destroy(other.gameObject);
         }
+        else if (other.tag == "EnemyBullet")
+        {
+            if (!isDamage)
+            {
+                Bullet enemyBullet = other.GetComponent<Bullet>();
+                health -= enemyBullet.damage;
+
+                bool isBossAtk = other.name == "Boss Melee Area";
+                StartCoroutine(OnDamage(isBossAtk));
+            }
+            if (other.GetComponent<Rigidbody>() != null)
+            {
+                Destroy(other.gameObject);
+            }
+        }
+    }
+
+    IEnumerator OnDamage(bool isBossAtk)
+    {
+        isDamage = true;
+        foreach(MeshRenderer mesh in meshs)
+        {
+            mesh.material.color = Color.yellow;
+        }
+
+        if (isBossAtk)
+        {
+            rigid.AddForce(transform.forward * -25, ForceMode.Impulse);
+        }
+        
+        if (health <= 0 && !isDead)
+        {
+            OnDie();
+        }
+
+        yield return new WaitForSeconds(1f);
+
+        isDamage = false;
+        foreach (MeshRenderer mesh in meshs)
+        {
+            mesh.material.color = Color.white;
+        }
+        if (isBossAtk)
+        {
+            rigid.velocity = Vector3.zero;
+        }
+    }
+    public void OnDie()
+    {
+        anim.SetTrigger("DoDie");
+        isDead = true;
+        manager.GameOver();
     }
 
     void OnTriggerStay(Collider other)
     {
-        if(other.tag == "Weapon")
+        if(other.tag == "Weapon" || other.tag == "Shop")
         {
             nearObject = other.gameObject;
         }
@@ -319,6 +442,13 @@ public class Player : MonoBehaviour
     {
         if (other.tag == "Weapon")
         {
+            nearObject = null;
+        }
+        else if (other.tag == "Shop")
+        {
+            Shop shop = nearObject.GetComponent<Shop>();
+            shop.Exit();
+            isShop = false;
             nearObject = null;
         }
     }
